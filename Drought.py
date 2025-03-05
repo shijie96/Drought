@@ -10,10 +10,16 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import RFE  #(Recursive Feature Elimination) is a technique used to select the most important features for a machine learning model by recursively eliminating the least important ones
 from imblearn.over_sampling import SMOTE # Synthetic minority over-sampling technique si a technique used to handle imbalanced datasets by generating synthetic samples for the minority class instead of simply duplicating existing ones.
-
+from imblearn.under_sampling import NeighbourhoodCleaningRule
+from imblearn.under_sampling import NearMiss
+from sklearn.decomposition import PCA, KernelPCA
+from sklearn import tree
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, cohen_kappa_score
 
 # Reading the Input data
-drought_df = pd.read_csv("C:/Users/shiji/OneDrive/桌面/New folder/Drought/train_timeseries/train_timeseries.csv")
+drought_df = pd.read_csv("C:/Users/shiji/OneDrive/桌面/New folder/New folder/train_timeseries/train_timeseries.csv")
 drought_df
 drought_df.head()
 
@@ -79,6 +85,7 @@ print('\nSkewness: \n', drought_df.skew(axis = 0, skipna = True))
 column_list = list(drought_df.columns)
 column_list
 
+
 # Univariate Analysis - Distribution of continuous variables
 measure_columns_list = ['PRECTOT', 'PS', 'QV2M', 'T2M', 'T2MDEW', 'T2MWET', 'T2M_MAX', 'T2M_MIN', 'T2M_RANGE', 'TS', 'WS10M', 'WS10M_MAX', 'WS10M_MIN','WS10M_RANGE', 'WS50M', 'WS50M_MAX', 'WS50M_MIN', 'WS50M_RANGE']
 drought_df_measures = drought_df[['PRECTOT', 'PS', 'QV2M', 'T2M', 'T2MDEW', 'T2MWET', 'T2M_MAX', 'T2M_MIN', 'T2M_RANGE', 'TS', 'WS10M', 'WS10M_MAX', 'WS10M_MIN','WS10M_RANGE', 'WS50M', 'WS50M_MAX', 'WS50M_MIN', 'WS50M_RANGE']]
@@ -103,7 +110,7 @@ for x in (range(1, 19)):
     sns.boxplot(x = drought_df_measures.columns[x-1], data = drought_df_measures)
     x_name = drought_df_measures.columns[x-1]
     plt.title(f'Distribution of {x_name}')
-plt.tight_layout()
+    plt.tight_layout()
 
 print('Total rows =', len(drought_df_measures.index))
 for i in drought_df_measures.select_dtypes(exclude= ['object']).columns:
@@ -277,3 +284,75 @@ x_train
 sm = SMOTE(random_state = 5)
 x_train_ures_SMOTE, y_train_ures_SMOTE = sm.fit_resample(x_train, y_train.ravel())
 print('Before Oversampling, the shape of train_x:{}'.format(x_train.shape))
+print('Before Oversampling, the shape of train_y: {} \n'.format(y_train.shape))
+
+print('After oversampling, the shape of train_x: {}'.format(x_train_ures_SMOTE.shape))
+print('After oversampling, the shape of train_y: {} \n'.format(y_train_ures_SMOTE.shape))
+
+print("Counts of label '0' - Before oversampling:{}, After oversampling: {}".format(sum(y_train == 0), sum(y_train_ures_SMOTE == 0)))
+print("Counts of label '1' - Before oversampling:{}, After oversampling: {}".format(sum(y_train == 1), sum(y_train_ures_SMOTE == 1)))
+print("Count of label '2' - Before oversampling: {}, After oversampling: {}".format(sum(y_train == 2), sum(y_train_ures_SMOTE ==2)))
+
+
+# Downsampling using Neighborhood Cleaning Rule
+Undersample = NeighbourhoodCleaningRule(n_neighbors = 3, threshold_cleaning = 0.5)
+x_train_dres, y_train_dres = Undersample.fit_resample(x_train, y_train)
+
+print('Before downsampling, the shape of train x: {}'.format(x_train.shape))
+print('Before downsampling, the shape of train y: {} \n'.format(y_train.shape))
+
+# Downsampling using Near Miss
+undersample = NearMiss()
+x_train_dres_nm, y_train_dres_nm = undersample.fit_resample(x_train,y_train)
+print('Before Undersampling, the shape of train_x: {}'.format(x_train.shape))
+print('Before Undersampling, the shape of train_y: {} \n'.format(y_train.shape))
+
+print('After undersampling, the shape of train_x:{}'.format(x_train_dres_nm.shape))
+print('After undersampling, the shape of train_y: {} \n'.format(y_train_dres_nm.shape))
+
+print("counts of label '0' - Before undersampling: {}, After undersampling: {}".format(sum(y_train == 0), sum(y_train_dres_nm == 0)))
+print("counts of label '1' - Before undersampling: {}, After undersampling: {}".format(sum(y_train ==1), sum(y_train_dres_nm == 1)))
+
+## PCA for dimensionality reduction
+
+# PCA on NEAR MISS downsampled data
+pca = PCA()
+x_train_dres_nm_PCAreduced = pca.fit_transform(x_train_dres_nm)
+x_test_NM_PCA_transformed = pca.fit_transform(x_test)
+x_test_NM_PCA_transformed
+
+print(pca.explained_variance_ratio_)
+print(pca.get_feature_names_out)
+
+# choose n value that explains >90% variance
+pca = PCA(n_components= 5)
+x_train_dres_nm_PCAreduced = pca.fit_transform(x_train_dres_nm)
+x_test_NM_PCA_transformed = pca.fit_transform(x_test)
+print(pca.explained_variance_ratio_)
+
+# PCA on SMOTE Upsampeled data
+pca = PCA()
+x_train_ures_SMOTE_PCAreduced = pca.fit_transform(x_train_ures_SMOTE)
+x_test_SMOTE_PCA_transformed = pca.transform(x_test)
+print(pca.explained_variance_ratio_)
+
+# choose n values that explains >90% variance
+pca = PCA(n_components= 5)
+x_train_ures_SMOTE_PCAreduced = pca.fit_transform(x_train_ures_SMOTE)
+x_test_SMOTE_PCA_transformed = pca.transform(x_test)
+print(pca.explained_variance_ratio_)
+
+# Model Development
+# Decision Tree Algorithm with Near Miss Downsampling
+Dt_Classifier_NM = tree.DecisionTreeClassifier(criterion = 'gini') # gini impurity
+Dt_Classifier_NM.fit(x_train_dres_nm, y_train_dres_nm)
+y_pred_NM = Dt_Classifier_NM.predict(x_test)
+
+print('Performance of Decision Tree Algorithm with Near Miss Downsampling and PCA: \n')
+print(confusion_matrix(y_test, y_pred_NM))
+print(classification_report(y_test, y_pred_NM))
+print('Accuracy:', accuracy_score(y_test, y_pred_NM))
+print('Precision:', precision_score(y_test, y_pred_NM, average= 'weighted'))
+print('Recall:', recall_score(y_test, y_pred_NM, average= 'weighted'))
+print('F1 Score:', f1_score(y_test, y_pred_NM, average='weighted'))
+print('Cohen Kappa Score:', cohen_kappa_score(y_test, y_pred_NM))
